@@ -6,7 +6,7 @@
 #define _GNU_SOURCE
 
 #include <errno.h>
-#include <getopt.h>
+#include <argp.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,127 +22,122 @@
 
 #include "ccan/autodata/autodata.h"
 
-static void print_version(const char *name)
-{
-    printf("%s: " CULVERT_VERSION "\n", name);
-}
+const char *argp_program_version = "culvert " CULVERT_VERSION;
+const char *argp_program_bug_address = "GitHub amboar/culvert";
+static char doc[] =
+    "\n"
+    "Culvert -- A Test and Debug Tool for BMC AHB Interfaces"
+    "\v"
+    "Supported commands:\n"
+    "   console     Start a getty on the BMC console\n"
+    "   coprocessor Run stuff on your copressor\n"
+    "   debug       Read or write data via debug UART\n"
+    "   devmem      Use /dev/mem stuff\n"
+    "   ilpc        Read or write data via iLPC\n"
+    "   jtag        Start a remote-bitbang JTAG adapter for OpenOCD\n"
+    "   otp         Read or write data via OTP\n"
+    "   p2a         Read or write data via P2A\n"
+    "   probe       Probe the BMC\n"
+    "   read        Read the firmware or a memory address\n"
+    "   replace     Replace matching content in the memory\n"
+    "   reset       Reset a compoment via watchdog\n"
+    "   sfc         Read, write or erase data on the FMC via SFC\n"
+    "   trace       Trace an address on the BMC\n"
+    "   write       Write firmware to the SPI or a memory address\n";
 
-static void print_help(const char *name, struct cmd **cmds, size_t n_cmds)
-{
-    print_version(name);
-    printf("Usage:\n");
-    printf("\n");
+static struct argp_option options[] = {
+    { "verbose", 'v', 0, 0, "Get verbose output", 0 },
+    { "quiet", 'q', 0, 0, "Don't produce any output", 0 },
+    { "skip-bridge", 's', "BRIDGE", 0, "Skip BRIDGE driver", 0 },
+    { "list-bridges", 'l', 0, 0, "List available bridge drivers", 0 },
+    {0}
+};
 
-    for (size_t i = 0; i < n_cmds; i++) {
-        printf("\t%s %s %s\n", name, cmds[i]->name, cmds[i]->help);
+struct command {
+    const char *name;
+    int (*fn)(struct argp_state *);
+};
+
+static error_t
+parse_opt(int key, char *arg, struct argp_state *state)
+{
+    struct arguments *arguments = state->input;
+
+    switch (key) {
+        case 'q':
+            log_set_level(level_none);
+            break;
+        case 'v':
+            log_set_level(level_trace);
+            break;
+        case 's':
+            if (disable_bridge_driver(arg)) {
+                fprintf(stderr, "Error: '%s' not a recognized bridge name (use '-l' to list)\n", arg);
+                exit(EXIT_FAILURE);
+            }
+            break;
+        case 'l':
+            print_bridge_drivers();
+            exit(EXIT_SUCCESS);
+            break;
+        case ARGP_KEY_ARGS:
+            for (int i = 0; i < state->argc - state->next; i++) {
+                arguments->args[i] = state->argv[state->next + i];
+            }
+            for (const struct command *cmd = cmds; cmd->name; cmd++) {
+                if (!strcmp(cmd->name, arguments->args[0])) {
+                    // Remove arguments->args[0] from the list
+                    for (int i = 0; i < state->argc - state->next; i++) {
+                        state->argv[state->next + i] = state->argv[state->next + i + 1];
+                    }
+                    state->argc--;
+
+                    int rc = cmd->fn(state);
+                    exit(rc ? EXIT_FAILURE : EXIT_SUCCESS);
+                }
+            }
+            argp_usage(state);
+            break;
+        case ARGP_KEY_END:
+            if (state->arg_num < 1)
+                argp_usage(state);
+            break;
+        default:
+            return ARGP_ERR_UNKNOWN;
     }
+
+    return 0;
 }
+
+static struct argp argp = {
+    options,
+    parse_opt,
+    "<cmd> [CMD_OPTIONS]...",
+    doc,
+    NULL,
+    NULL,
+    NULL
+};
 
 int main(int argc, char *argv[])
 {
-    bool show_help = false;
-    bool quiet = false;
-    struct cmd **cmds;
-    size_t n_cmds = 0;
-    int verbose = 0;
-    int rc;
+    struct arguments arguments = {0};
 
-    while (1) {
-        static struct option long_options[] = {
-            { "help", no_argument, NULL, 'h' },
-            { "quiet", no_argument, NULL, 'q' },
-            { "skip-bridge", required_argument, NULL, 's' },
-            { "list-bridges", no_argument, NULL, 'l' },
-            { "verbose", no_argument, NULL, 'v' },
-            { "version", no_argument, NULL, 'V' },
-            { },
-        };
-        int option_index = 0;
-        int c;
+    /*
+     * Always initialise the log level and set a
+     * different level if an argument is passed.
+     */
+    log_set_level(level_info);
 
-        c = getopt_long(argc, argv, "+hlqs:vV", long_options, &option_index);
-        if (c == -1)
-            break;
-
-        switch (c) {
-            case 'h':
-                show_help = true;
-                break;
-            case 'l':
-                print_bridge_drivers();
-                exit(EXIT_SUCCESS);
-                break;
-            case 'v':
-                verbose++;
-                break;
-            case 'V':
-                print_version(program_invocation_short_name);
-                exit(EXIT_SUCCESS);
-            case 'q':
-                quiet = true;
-                break;
-            case 's':
-                if (disable_bridge_driver(optarg)) {
-                    fprintf(stderr, "Error: '%s' not a recognized bridge name (use '-l' to list)\n", optarg);
-                    exit(EXIT_FAILURE);
-                }
-                break;
-            case '?':
-                exit(EXIT_FAILURE);
-            default:
-                continue;
-        }
+    /*
+     * Parse command-line arguments
+     * NOTE: `ARGP_IN_ORDER` is required to make sub-commands work
+     * properly and to enforce options to be in order.
+    */
+    if (argp_parse(&argp, argc, argv, ARGP_IN_ORDER, 0, &arguments) != 0) {
+        fprintf(stderr, "Error parsing arguments\n");
+        exit(EXIT_FAILURE);
     }
 
-    cmds = autodata_get(cmds, &n_cmds);
-    qsort(cmds, n_cmds, sizeof(void *), cmd_cmp);
-
-    if (optind == argc) {
-        if (show_help) {
-            rc = 0;
-        } else {
-            fprintf(stderr, "Error: not enough arguments\n");
-            rc = -EINVAL;
-        }
-        print_help(program_invocation_short_name, cmds, n_cmds);
-        goto cleanup_cmds;
-    }
-
-    if (quiet) {
-        log_set_level(level_none);
-    } else if ((level_info + verbose) <= level_trace) {
-        log_set_level(level_info + verbose);
-    } else {
-        log_set_level(level_trace);
-    }
-
-    rc = -EINVAL;
-    for (size_t i = 0; i < n_cmds; i++) {
-        struct cmd *cmd = cmds[i];
-        int offset;
-
-        if (strcmp(cmd->name, argv[optind])) {
-            continue;
-        }
-
-        offset = optind;
-
-        /* probe uses getopt, but for subcommands not using getopt */
-        if (!(!strcmp("probe", argv[optind]) || !strcmp("write", argv[optind]))) {
-            offset += 1;
-        }
-        optind = 1;
-
-        rc = cmd->fn(program_invocation_short_name, argc - offset, argv + offset);
-        break;
-    }
-
-    if (rc == -EINVAL) {
-        fprintf(stderr, "Unrecognised command\n\n");
-        print_help(program_invocation_short_name, cmds, n_cmds);
-    }
-
-cleanup_cmds:
-    autodata_free(cmds);
-    exit(rc ? EXIT_FAILURE : EXIT_SUCCESS);
+    exit(EXIT_FAILURE);
 }

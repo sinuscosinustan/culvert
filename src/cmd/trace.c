@@ -2,7 +2,6 @@
 // Copyright (C) 2018,2021 IBM Corp.
 // Copyright (C) 2021, Oracle and/or its affiliates.
 
-#include "arg_helper.h"
 #include "ahb.h"
 #include "ast.h"
 #include "cmd.h"

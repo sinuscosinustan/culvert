@@ -5,7 +5,6 @@
 #define _GNU_SOURCE
 
 #include "ahb.h"
-#include "arg_helper.h"
 #include "ast.h"
 #include "bridge/debug.h"
 #include "cmd.h"

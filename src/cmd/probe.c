@@ -2,7 +2,6 @@
 // Copyright (C) 2018,2021 IBM Corp.
 
 #include "cmd.h"
-#include "arg_helper.h"
 #include "compiler.h"
 #include "host.h"
 #include "log.h"

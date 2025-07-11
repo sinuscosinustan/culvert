@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2024 Code Construct
 
-#include "arg_helper.h"
 #include "bits.h"
 #include "cmd.h"
 #include "connection.h"

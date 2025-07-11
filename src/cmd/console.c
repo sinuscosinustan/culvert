@@ -2,7 +2,6 @@
 // Copyright (C) 2018,2021 IBM Corp.
 
 #include "ahb.h"
-#include "arg_helper.h"
 #include "ast.h"
 #include "cmd.h"
 #include "compiler.h"
@@ -93,11 +92,10 @@ int do_console(struct argp_state* state)
     int cleanup;
     int rc;
 
-    struct subcommand console_cmd;
     struct cmd_console_args arguments = {0};
-    parse_subcommand(&argp_console, "console", &arguments, state, &console_cmd);
+    argp_parse(&argp_console, state->argc, state->argv, ARGP_IN_ORDER, 0, &arguments);
 
-    if ((rc = host_init(host, console_cmd.argc - 4, console_cmd.argv + 4)) < 0) {
+    if ((rc = host_init(host, state->argc - 4, state->argv + 4)) < 0) {
         loge("Failed to initialise host interfaces: %d\n", rc);
         exit(EXIT_FAILURE);
     }
@@ -227,8 +225,10 @@ host_cleanup:
 }
 
 static const struct cmd console_cmd = {
-    "console",
-    "HOST_UART BMC_UART BAUD USER PASSWORD",
-    do_console
+    .name = "console",
+    .parent = NULL,
+    .short_doc = "HOST_UART BMC_UART BAUD USER PASSWORD",
+    .has_children = 0,
+    do_console,
 };
 REGISTER_CMD(console_cmd);

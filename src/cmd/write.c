@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2018,2021 IBM Corp.
 
-#include "arg_helper.h"
 #include "ahb.h"
 #include "ast.h"
 #include "cmd.h"

@@ -3,7 +3,6 @@
 
 /* For program_invocation_short_name */
 #define _GNU_SOURCE
-#include "arg_helper.h"
 #include "ahb.h"
 #include "ast.h"
 #include "bridge/ilpc.h"

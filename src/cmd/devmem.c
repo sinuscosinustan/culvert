@@ -11,7 +11,6 @@
 #include <string.h>
 
 #include "ahb.h"
-#include "arg_helper.h"
 #include "ast.h"
 #include "bridge/devmem.h"
 #include "cmd.h"

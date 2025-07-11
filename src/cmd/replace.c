@@ -2,7 +2,6 @@
 // Copyright (C) 2018,2021 IBM Corp.
 #define _GNU_SOURCE
 
-#include "arg_helper.h"
 #include "ahb.h"
 #include "ast.h"
 #include "cmd.h"

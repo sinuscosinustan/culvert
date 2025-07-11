@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2018,2021 IBM Corp.
 
-#include "arg_helper.h"
 #include "ahb.h"
 #include "ast.h"
 #include "cmd.h"
@@ -127,13 +126,14 @@ int do_sfc(struct argp_state *state)
     char *buf;
     int rc;
 
-    struct subcommand sfc_cmd;
     struct cmd_sfc_args arguments = {0};
     /* Set operation to 99, because read is 0 */
     arguments.op = 99;
-    parse_subcommand(&argp, "sfc", &arguments, state, &sfc_cmd);
+    argp_parse(&argp, state->argc, state->argv, ARGP_IN_ORDER, 0, &arguments);
 
-    char **argv_host = sfc_cmd.argv + 1 + (sfc_cmd.argc - 1 - arguments.key_arg_count);
+    exit(EXIT_SUCCESS);
+    char **argv_host;
+    //char **argv_host = argp.argv + 1 + (argp.argc - 1 - arguments.key_arg_count);
 
     if ((rc = host_init(host, arguments.key_arg_count, argv_host)) < 0) {
         loge("Failed to initialise host interfaces: %d\n", rc);
@@ -218,8 +218,10 @@ cleanup_host:
 }
 
 static const struct cmd sfc_cmd = {
-    "sfc",
-    "fmc <erase|read|write> ADDRESS LENGTH [INTERFACE [IP PORT USERNAME PASSWORD]]",
+    .name = "sfc",
+    .parent = NULL,
+    .short_doc = "fmc <erase|read|write> ADDRESS LENGTH [INTERFACE [IP PORT USERNAME PASSWORD]]",
+    .has_children = 0,
     do_sfc,
 };
 REGISTER_CMD(sfc_cmd);
